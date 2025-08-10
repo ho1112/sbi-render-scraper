@@ -118,48 +118,100 @@ async function scrapeDividend() {
     
     console.log('Login successful, proceeding to 2FA...');
     
-    // 2단계 인증 처리
-    // 디바이스 인증 팝업에서 코드 추출
-    const deviceCode = await page.$eval('#code-display', el => el.textContent);
-    console.log('Device code extracted:', deviceCode);
-    
-    // Gmail에서 인증 URL 가져오기 (간단한 구현)
-    // 실제로는 Gmail API를 사용해야 함
-    const authUrl = await getAuthUrlFromGmail();
-    
-    // 새 탭에서 인증 URL 열기
-    const authPage = await browser.newPage();
-    await authPage.goto(authUrl);
-    
-    // 인증 코드 입력
-    await authPage.type('input[name="verifyCode"]', deviceCode);
-    await authPage.click('button[type="submit"]');
-    
-    // 인증 완료 후 탭 닫기
-    await authPage.close();
-    
-    // 원래 페이지로 돌아가서 최종 확인
-    await page.check('#device-checkbox');
-    await page.click('#device-auth-otp');
-    
-    console.log('2FA completed, navigating to dividend page...');
+    // 2FA가 필요하지 않은 경우 건너뛰기
+    if (!(await page.$('#code-display'))) {
+      console.log('2FA not required, proceeding directly to dividend page...');
+    } else {
+      // 2단계 인증 처리 (기존 코드)
+      // 디바이스 인증 팝업에서 코드 추출
+      const deviceCode = await page.$eval('#code-display', el => el.textContent);
+      console.log('Device code extracted:', deviceCode);
+      
+      // Gmail에서 인증 URL 가져오기 (간단한 구현)
+      // 실제로는 Gmail API를 사용해야 함
+      const authUrl = await getAuthUrlFromGmail();
+      
+      // 새 탭에서 인증 URL 열기
+      const authPage = await browser.newPage();
+      await authPage.goto(authUrl);
+      
+      // 인증 코드 입력
+      await authPage.type('input[name="verifyCode"]', deviceCode);
+      await authPage.click('button[type="submit"]');
+      
+      // 인증 완료 후 탭 닫기
+      await authPage.close();
+      
+      // 원래 페이지로 돌아가서 최종 확인
+      await page.check('#device-checkbox');
+      await page.click('#device-auth-otp');
+      
+      console.log('2FA completed, navigating to dividend page...');
+    }
     
     // 배당금 내역 페이지로 이동
-    const today = new Date();
-    const dateStr = today.toISOString().split('T')[0].replace(/-/g, '/');
+    // scraper.ts와 동일한 날짜 처리 로직
+    // 환경변수 우선, 없으면 오늘 날짜
+    const envFrom = process.env.SCRAPE_FROM;
+    const envTo = process.env.SCRAPE_TO;
     
-    const dividendUrl = `https://www.sbisec.co.jp/ETGate?_ControlID=WPLETmgR001Control&_DataStoreID=DSWPLETmgR001Control&_PageID=WPLETmgR001Ktkg010&_ActionID=urlDefault&getFlg=on&_UserID=WPLETmgR001Control&_UserName=WPLETmgR001Control&_PageName=WPLETmgR001Ktkg010&_PageTitle=WPLETmgR001Ktkg010&_PageID=WPLETmgR001Ktkg010&_ActionID=urlDefault&getFlg=on&_UserID=WPLETmgR001Control&_UserName=WPLETmgR001Control&_PageName=WPLETmgR001Ktkg010&_PageTitle=WPLETmgR001Ktkg010&dispositionDateFrom=${dateStr}&dispositionDateTo=${dateStr}&period=TODAY`;
+    let dispositionDateFrom;
+    let dispositionDateTo;
     
-    await page.goto(dividendUrl);
-    await page.waitForSelector('button[role="button"]');
+    if (envFrom && envTo) {
+      dispositionDateFrom = envFrom;
+      dispositionDateTo = envTo;
+      console.log(`Using environment variables for dates: ${envFrom} to ${envTo}`);
+    } else {
+      // 오늘 날짜 사용 (JST)
+      const today = new Date();
+      const jstDate = new Date(today.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
+      const dateStr = jstDate.toISOString().split('T')[0].replace(/-/g, '/');
+      dispositionDateFrom = dateStr;
+      dispositionDateTo = dateStr;
+      console.log(`Using today's date (JST): ${dateStr}`);
+    }
     
-    // CSV 다운로드 버튼 클릭
-    await page.click('button[role="button"]');
+    // scraper.ts와 동일한 URL 사용
+    const baseUrl = 'https://site.sbisec.co.jp/account/assets/dividends';
+    const dividendUrl = `${baseUrl}?dispositionDateFrom=${dispositionDateFrom}&dispositionDateTo=${dispositionDateTo}`;
     
-    // CSV 파일 다운로드 대기 (간단한 구현)
-    await page.waitForTimeout(2000);
+    console.log(`Navigating to dividend page: ${dividendUrl}`);
+    await page.goto(dividendUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
     
-    console.log('CSV download initiated');
+    // CSV 다운로드 버튼 찾기 (scraper.ts와 동일한 방식)
+    console.log('Looking for CSV download button...');
+    let downloadButton = null;
+    
+    try {
+      // 먼저 role 기반으로 찾기
+      downloadButton = await page.$('button[role="button"]');
+      if (downloadButton) {
+        console.log('CSV download button found by role');
+      }
+    } catch (error) {
+      console.log('Role-based button not found, trying fallback selector...');
+    }
+    
+    if (!downloadButton) {
+      try {
+        // 폴백 셀렉터로 시도
+        downloadButton = await page.$('button.text-xs.link-light:has-text("CSVダウンロード")');
+        if (downloadButton) {
+          console.log('CSV download button found by fallback selector');
+        }
+      } catch (error) {
+        console.log('Fallback selector also failed');
+      }
+    }
+    
+    if (downloadButton) {
+      // CSV 다운로드 버튼 클릭
+      await downloadButton.click();
+      console.log('CSV download initiated');
+    } else {
+      console.log('CSV download button not found');
+    }
     
     // 브라우저 종료
     await browser.close();
