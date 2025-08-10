@@ -1,10 +1,11 @@
 const express = require('express');
 const cors = require('cors');
 const puppeteer = require('puppeteer-core');
+const chromium = require('@sparticuz/chromium');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 
 // 미들웨어
 app.use(cors());
@@ -33,20 +34,15 @@ async function scrapeDividend() {
   try {
     console.log('Starting dividend scraping...');
     
-    // Puppeteer 브라우저 실행
+    // @sparticuz/chromium 사용
+    const executablePath = await chromium.executablePath();
+    
     browser = await puppeteer.launch({
-      executablePath: '/opt/render/.cache/puppeteer/chrome/linux-139.0.7258.66/chrome-linux64/chrome',
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--single-process',
-        '--disable-gpu'
-      ]
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: executablePath,
+      headless: chromium.headless,
+      ignoreHTTPSErrors: true,
     });
 
     const page = await browser.newPage();
