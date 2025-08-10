@@ -35,6 +35,7 @@ async function scrapeDividend() {
     
     // Puppeteer 브라우저 실행
     browser = await puppeteer.launch({
+      executablePath: '/usr/bin/google-chrome',
       headless: true,
       args: [
         '--no-sandbox',
