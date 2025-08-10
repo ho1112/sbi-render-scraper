@@ -101,6 +101,21 @@ async function scrapeDividend() {
       console.log('Already logged in, proceeding to main page...');
     }
     
+    // 현재 페이지 상태 재확인 (2FA 전)
+    const currentUrlAfterLogin = await page.url();
+    const currentTitleAfterLogin = await page.title();
+    console.log('Current URL after login:', currentUrlAfterLogin);
+    console.log('Current title after login:', currentTitleAfterLogin);
+    
+    // 페이지 내용 일부 확인
+    try {
+      const pageContent = await page.content();
+      console.log('Page contains 2FA elements:', pageContent.includes('code-display'));
+      console.log('Page contains device authentication:', pageContent.includes('device'));
+    } catch (error) {
+      console.log('Could not check page content:', error.message);
+    }
+    
     console.log('Login successful, proceeding to 2FA...');
     
     // 2단계 인증 처리
