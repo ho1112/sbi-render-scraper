@@ -185,52 +185,40 @@ async function scrapeDividend(options = {}) {
     console.log(`Navigating to dividend page: ${dividendUrl}`);
     await page.goto(dividendUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
     
-    // CSV 다운로드 버튼 찾기 (scraper.ts와 동일한 방식)
+    // CSV 다운로드 버튼 찾기 (실제 HTML 구조에 맞춤)
     console.log('Looking for CSV download button...');
     let downloadButton = null;
     
     try {
-      // scraper.ts와 동일한 방식: role과 name으로 찾기
-      downloadButton = await page.$('button[role="button"]');
+      // 실제 HTML: <button type="button" class="text-xs link-light">
+      downloadButton = await page.$('button.text-xs.link-light');
       if (downloadButton) {
-        // 버튼의 텍스트가 "CSVダウンロード"를 포함하는지 확인
         const buttonText = await page.evaluate(el => el.textContent, downloadButton);
+        console.log('Found button with text:', buttonText);
         if (buttonText && buttonText.includes('CSVダウンロード')) {
-          console.log('CSV download button found by role and text');
+          console.log('CSV download button found by CSS class and text');
         } else {
-          downloadButton = null; // 텍스트가 맞지 않으면 null로 설정
+          downloadButton = null;
         }
+      } else {
+        console.log('No button found with CSS class text-xs link-light');
       }
     } catch (error) {
-      console.log('Role-based button not found, trying fallback selector...');
+      console.log('CSS selector failed:', error.message);
     }
     
+    // 디버깅: 페이지에 어떤 버튼들이 있는지 확인
     if (!downloadButton) {
       try {
-        // 폴백: 더 구체적인 셀렉터로 시도
-        downloadButton = await page.$('button:has-text("CSVダウンロード")');
-        if (downloadButton) {
-          console.log('CSV download button found by text selector');
+        const allButtons = await page.$$('button');
+        console.log(`Found ${allButtons.length} buttons on page`);
+        for (let i = 0; i < Math.min(allButtons.length, 5); i++) {
+          const buttonText = await page.evaluate(el => el.textContent, allButtons[i]);
+          const buttonClass = await page.evaluate(el => el.className, allButtons[i]);
+          console.log(`Button ${i}: text="${buttonText}", class="${buttonClass}"`);
         }
       } catch (error) {
-        console.log('Text selector failed, trying CSS selector...');
-      }
-    }
-    
-    if (!downloadButton) {
-      try {
-        // CSS 클래스 기반으로 시도
-        downloadButton = await page.$('button.text-xs.link-light');
-        if (downloadButton) {
-          const buttonText = await page.evaluate(el => el.textContent, downloadButton);
-          if (buttonText && buttonText.includes('CSVダウンロード')) {
-            console.log('CSV download button found by CSS class and text');
-          } else {
-            downloadButton = null;
-          }
-        }
-      } catch (error) {
-        console.log('CSS selector also failed');
+        console.log('Could not inspect buttons:', error.message);
       }
     }
     
