@@ -2,14 +2,20 @@ const express = require('express');
 const cors = require('cors');
 const puppeteer = require('puppeteer-core');
 const chromium = require('@sparticuz/chromium');
-require('dotenv').config();
+const fs = require('fs');
+require('dotenv').config({ path: '.env.local' });
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 // 미들웨어
 app.use(cors());
 app.use(express.json());
+
+// 루트 경로 테스트
+app.get('/', (req, res) => {
+    res.json({ message: 'Render scraper server is running!' });
+});
 
 // 환경 변수 검증
 const requiredEnvVars = [
@@ -34,33 +40,66 @@ async function scrapeDividend() {
   try {
     console.log('Starting dividend scraping...');
     
-    // @sparticuz/chromium 사용
-    const executablePath = await chromium.executablePath();
-    
+    // 브라우저 실행
     browser = await puppeteer.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
-      executablePath: executablePath,
+      executablePath: await chromium.executablePath(),
       headless: chromium.headless,
-      ignoreHTTPSErrors: true,
     });
 
     const page = await browser.newPage();
     
+    // 저장된 쿠키가 있으면 설정
+    try {
+      if (fs.existsSync('sbi-cookies.json')) {
+        const cookies = JSON.parse(fs.readFileSync('sbi-cookies.json', 'utf8'));
+        await page.setCookie(...cookies);
+        console.log('Loaded saved cookies');
+      }
+    } catch (error) {
+      console.log('Could not load cookies:', error.message);
+    }
+
     // SBI 증권 로그인 페이지로 이동
     console.log('Navigating to SBI Securities login page...');
     await page.goto('https://www.sbisec.co.jp/ETGate', {
       waitUntil: 'domcontentloaded',
       timeout: 60000  // 60초로 증가
     });
-    
-    // 로그인 폼 입력
-    await page.type('input[name="user_id"]', process.env.SBI_ID);
-    await page.type('input[name="user_password"]', process.env.SBI_PASSWORD);
-    
-    // 로그인 버튼 클릭
-    await page.click('button[type="submit"]');
-    await page.waitForNavigation();
+
+    // 현재 페이지 상태 확인
+    const currentUrl = await page.url();
+    const currentTitle = await page.title();
+    console.log('Current URL:', currentUrl);
+    console.log('Current title:', currentTitle);
+
+    // 로그인 페이지에 있는지 확인
+    if (currentUrl.includes('login') || currentTitle.includes('ログイン')) {
+      console.log('Still on login page, proceeding with login...');
+      
+      // 사용자 ID와 비밀번호 입력
+      await page.fill('input[name="user_id"]', process.env.SBI_ID);
+      await page.fill('input[name="user_password"]', process.env.SBI_PASSWORD);
+      
+      // 로그인 버튼 클릭
+      console.log('Clicking login button...');
+      await page.click('button[name="ACT_loginHome"]');
+      await page.waitForNavigation();
+      
+      console.log('Login successful!');
+      
+      // 로그인 성공 후 쿠키 저장
+      try {
+        const cookies = await page.cookies();
+        fs.writeFileSync('sbi-cookies.json', JSON.stringify(cookies, null, 2));
+        console.log('Saved cookies for future use');
+      } catch (error) {
+        console.log('Could not save cookies:', error.message);
+      }
+    } else {
+      console.log('Already logged in, proceeding to main page...');
+    }
     
     console.log('Login successful, proceeding to 2FA...');
     
@@ -156,6 +195,10 @@ app.post('/scrape', async (req, res) => {
     
     if (action === 'scrape_dividend') {
       console.log('Received scrape request');
+      
+      // Puppeteer 실행 전 테스트 응답
+      console.log('About to launch Puppeteer...');
+      
       const result = await scrapeDividend();
       res.json(result);
     } else {
@@ -177,7 +220,6 @@ app.get('/health', (req, res) => {
 
 // 서버 시작
 app.listen(PORT, () => {
-  console.log(`Scraper server running on port ${PORT}`);
-  console.log('Environment:', process.env.NODE_ENV || 'development');
+  console.log(`Server is running on port ${PORT}`);
 });
 

@@ -1,0 +1,31 @@
+# 환경 변수 파일
+.env
+.env.local
+.env.production
+.env.development
+
+# 쿠키 파일 (세션 정보)
+sbi-cookies.json
+
+# 로그 파일
+*.log
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 운영체제
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 임시 파일
+*.tmp
+*.temp
