@@ -210,7 +210,7 @@ async function scrapeDividend(options = {}) {
     console.log('Current title before dividend navigation:', currentTitleBeforeDividend);
     
     console.log(`Navigating to dividend page: ${dividendUrl}`);
-    await page.goto(dividendUrl, { waitUntil: 'networkidle', timeout: 60000 });
+    await page.goto(dividendUrl, { waitUntil: 'networkidle2', timeout: 60000 });
     
     // 배당금 페이지 이동 후 상태 확인
     const dividendPageUrl = await page.url();
