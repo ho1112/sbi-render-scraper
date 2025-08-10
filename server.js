@@ -34,8 +34,8 @@ requiredEnvVars.forEach(varName => {
 });
 
 // 스크래핑 함수
-async function scrapeDividend() {
-  let browser;
+async function scrapeDividend(options = {}) {
+  let browser = null;
   
   try {
     console.log('Starting dividend scraping...');
@@ -151,14 +151,20 @@ async function scrapeDividend() {
     
     // 배당금 내역 페이지로 이동
     // scraper.ts와 동일한 날짜 처리 로직
-    // 환경변수 우선, 없으면 오늘 날짜
-    const envFrom = process.env.SCRAPE_FROM;
-    const envTo = process.env.SCRAPE_TO;
+    // 요청 바디 우선, 다음 환경변수, 없으면 오늘 날짜
+    const bodyFrom = options.from;                    // yyyy/mm/dd
+    const bodyTo = options.to;                        // yyyy/mm/dd
+    const envFrom = process.env.SCRAPE_FROM;          // yyyy/mm/dd
+    const envTo = process.env.SCRAPE_TO;              // yyyy/mm/dd
     
     let dispositionDateFrom;
     let dispositionDateTo;
     
-    if (envFrom && envTo) {
+    if (bodyFrom && bodyTo) {
+      dispositionDateFrom = bodyFrom;
+      dispositionDateTo = bodyTo;
+      console.log(`Using request body dates: ${bodyFrom} to ${bodyTo}`);
+    } else if (envFrom && envTo) {
       dispositionDateFrom = envFrom;
       dispositionDateTo = envTo;
       console.log(`Using environment variables for dates: ${envFrom} to ${envTo}`);
@@ -258,7 +264,7 @@ async function parseCSV(filePath) {
 // API 엔드포인트
 app.post('/scrape', async (req, res) => {
   try {
-    const { action } = req.body;
+    const { action, from, to } = req.body;
     
     if (action === 'scrape_dividend') {
       console.log('Received scrape request');
@@ -266,7 +272,7 @@ app.post('/scrape', async (req, res) => {
       // Puppeteer 실행 전 테스트 응답
       console.log('About to launch Puppeteer...');
       
-      const result = await scrapeDividend();
+      const result = await scrapeDividend({ from, to });
       res.json(result);
     } else {
       res.status(400).json({ error: 'Invalid action' });
