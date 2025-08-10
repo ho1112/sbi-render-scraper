@@ -199,8 +199,29 @@ async function scrapeDividend(options = {}) {
     const baseUrl = 'https://site.sbisec.co.jp/account/assets/dividends';
     const dividendUrl = `${baseUrl}?dispositionDateFrom=${dispositionDateFrom}&dispositionDateTo=${dispositionDateTo}`;
     
+    // 로그인 후 페이지가 완전히 로드될 때까지 대기
+    console.log('Waiting for login to complete...');
+    await page.waitForTimeout(3000); // 3초 대기
+    
+    // 현재 페이지 상태 확인
+    const currentUrlBeforeDividend = await page.url();
+    const currentTitleBeforeDividend = await page.title();
+    console.log('Current URL before dividend navigation:', currentUrlBeforeDividend);
+    console.log('Current title before dividend navigation:', currentTitleBeforeDividend);
+    
     console.log(`Navigating to dividend page: ${dividendUrl}`);
-    await page.goto(dividendUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.goto(dividendUrl, { waitUntil: 'networkidle', timeout: 60000 });
+    
+    // 배당금 페이지 이동 후 상태 확인
+    const dividendPageUrl = await page.url();
+    const dividendPageTitle = await page.title();
+    console.log('Dividend page URL after navigation:', dividendPageUrl);
+    console.log('Dividend page title after navigation:', dividendPageTitle);
+    
+    // 실제로 배당금 페이지에 도달했는지 확인
+    if (!dividendPageUrl.includes('dividends')) {
+      console.log('WARNING: Did not reach dividend page, current URL:', dividendPageUrl);
+    }
     
     // CSV 다운로드 버튼 찾기 (실제 HTML 구조에 맞춤)
     console.log('Looking for CSV download button...');
