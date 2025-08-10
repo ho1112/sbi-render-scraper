@@ -74,17 +74,19 @@ async function scrapeDividend(options = {}) {
     console.log('Current URL:', currentUrl);
     console.log('Current title:', currentTitle);
 
-    // 로그인 페이지에 있는지 확인
-    if (currentUrl.includes('login') || currentTitle.includes('ログイン')) {
-      console.log('Still on login page, proceeding with login...');
+    // 실제 HTML 구조에 맞춰 로그인 상태 확인
+    const loginForm = await page.$('input[name="user_id"]');
+    
+    if (loginForm) {
+      console.log('Login form found, proceeding with login...');
       
-      // 사용자 ID와 비밀번호 입력
+      // 사용자 ID와 비밀번호 입력 (실제 HTML 구조에 맞춤)
       await page.fill('input[name="user_id"]', process.env.SBI_ID);
       await page.fill('input[name="user_password"]', process.env.SBI_PASSWORD);
       
-      // 로그인 버튼 클릭
+      // 로그인 버튼 클릭 (실제 HTML: input[type="submit"][name="ACT_login"])
       console.log('Clicking login button...');
-      await page.click('button[name="ACT_loginHome"]');
+      await page.click('input[name="ACT_login"]');
       await page.waitForNavigation();
       
       console.log('Login successful!');
@@ -98,7 +100,22 @@ async function scrapeDividend(options = {}) {
         console.log('Could not save cookies:', error.message);
       }
     } else {
-      console.log('Already logged in, proceeding to main page...');
+      console.log('No login form found, checking if already logged in...');
+      
+      // 실제로 로그인된 상태인지 확인 (사용자 정보나 계정 메뉴가 있는지)
+      const userInfo = await page.$('.user-info, .account-info, [data-user], .user-menu, .account-menu');
+      if (userInfo) {
+        console.log('User info found, already logged in');
+      } else {
+        console.log('No user info found, forcing login...');
+        
+        // 강제로 로그인 진행
+        await page.fill('input[name="user_id"]', process.env.SBI_ID);
+        await page.fill('input[name="user_password"]', process.env.SBI_PASSWORD);
+        await page.click('input[name="ACT_login"]');
+        await page.waitForNavigation();
+        console.log('Forced login completed');
+      }
     }
     
     // 현재 페이지 상태 재확인 (2FA 전)
