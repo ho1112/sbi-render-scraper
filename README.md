@@ -17,7 +17,7 @@ SBI 증권 배당금 정보를 스크래핑하는 Render 서버입니다.
 Render 대시보드에서 다음 환경 변수들을 설정:
 
 ```
-SBI_USERNAME=your_sbi_username
+SBI_ID=your_sbi_id
 SBI_PASSWORD=your_sbi_password
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret

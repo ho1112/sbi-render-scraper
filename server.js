@@ -12,7 +12,7 @@ app.use(express.json());
 
 // 환경 변수 검증
 const requiredEnvVars = [
-  'SBI_USERNAME',
+  'SBI_ID',
   'SBI_PASSWORD', 
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
@@ -60,7 +60,7 @@ async function scrapeDividend() {
     await page.goto('https://www.sbisec.co.jp/ETGate');
     
     // 로그인 폼 입력
-    await page.fill('input[name="user_id"]', process.env.SBI_USERNAME);
+    await page.fill('input[name="user_id"]', process.env.SBI_ID);
     await page.fill('input[name="user_password"]', process.env.SBI_PASSWORD);
     
     // 로그인 버튼 클릭

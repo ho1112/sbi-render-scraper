@@ -8,7 +8,7 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: SBI_USERNAME
+      - key: SBI_ID
         sync: false
       - key: SBI_PASSWORD
         sync: false
