@@ -80,9 +80,9 @@ async function scrapeDividend(options = {}) {
     if (loginForm) {
       console.log('Login form found, proceeding with login...');
       
-      // 사용자 ID와 비밀번호 입력 (실제 HTML 구조에 맞춤)
-      await page.fill('input[name="user_id"]', process.env.SBI_ID);
-      await page.fill('input[name="user_password"]', process.env.SBI_PASSWORD);
+      // 사용자 ID와 비밀번호 입력 (Puppeteer API 사용)
+      await page.type('input[name="user_id"]', process.env.SBI_ID);
+      await page.type('input[name="user_password"]', process.env.SBI_PASSWORD);
       
       // 로그인 버튼 클릭 (실제 HTML: input[type="submit"][name="ACT_login"])
       console.log('Clicking login button...');
@@ -110,8 +110,8 @@ async function scrapeDividend(options = {}) {
         console.log('No user info found, forcing login...');
         
         // 강제로 로그인 진행
-        await page.fill('input[name="user_id"]', process.env.SBI_ID);
-        await page.fill('input[name="user_password"]', process.env.SBI_PASSWORD);
+        await page.type('input[name="user_id"]', process.env.SBI_ID);
+        await page.type('input[name="user_password"]', process.env.SBI_PASSWORD);
         await page.click('input[name="ACT_login"]');
         await page.waitForNavigation();
         console.log('Forced login completed');
