@@ -49,7 +49,10 @@ async function scrapeDividend() {
     
     // SBI 증권 로그인 페이지로 이동
     console.log('Navigating to SBI Securities login page...');
-    await page.goto('https://www.sbisec.co.jp/ETGate');
+    await page.goto('https://www.sbisec.co.jp/ETGate', {
+      waitUntil: 'domcontentloaded',
+      timeout: 60000  // 60초로 증가
+    });
     
     // 로그인 폼 입력
     await page.type('input[name="user_id"]', process.env.SBI_ID);
