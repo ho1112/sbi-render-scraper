@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "build": "echo 'No build step required'",
+    "build": "npx playwright install chromium",
     "postinstall": "npx playwright install chromium"
   },
   "dependencies": {
