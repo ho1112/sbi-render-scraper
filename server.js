@@ -190,10 +190,16 @@ async function scrapeDividend(options = {}) {
     let downloadButton = null;
     
     try {
-      // 먼저 role 기반으로 찾기
+      // scraper.ts와 동일한 방식: role과 name으로 찾기
       downloadButton = await page.$('button[role="button"]');
       if (downloadButton) {
-        console.log('CSV download button found by role');
+        // 버튼의 텍스트가 "CSVダウンロード"를 포함하는지 확인
+        const buttonText = await page.evaluate(el => el.textContent, downloadButton);
+        if (buttonText && buttonText.includes('CSVダウンロード')) {
+          console.log('CSV download button found by role and text');
+        } else {
+          downloadButton = null; // 텍스트가 맞지 않으면 null로 설정
+        }
       }
     } catch (error) {
       console.log('Role-based button not found, trying fallback selector...');
@@ -201,13 +207,30 @@ async function scrapeDividend(options = {}) {
     
     if (!downloadButton) {
       try {
-        // 폴백 셀렉터로 시도
-        downloadButton = await page.$('button.text-xs.link-light:has-text("CSVダウンロード")');
+        // 폴백: 더 구체적인 셀렉터로 시도
+        downloadButton = await page.$('button:has-text("CSVダウンロード")');
         if (downloadButton) {
-          console.log('CSV download button found by fallback selector');
+          console.log('CSV download button found by text selector');
         }
       } catch (error) {
-        console.log('Fallback selector also failed');
+        console.log('Text selector failed, trying CSS selector...');
+      }
+    }
+    
+    if (!downloadButton) {
+      try {
+        // CSS 클래스 기반으로 시도
+        downloadButton = await page.$('button.text-xs.link-light');
+        if (downloadButton) {
+          const buttonText = await page.evaluate(el => el.textContent, downloadButton);
+          if (buttonText && buttonText.includes('CSVダウンロード')) {
+            console.log('CSV download button found by CSS class and text');
+          } else {
+            downloadButton = null;
+          }
+        }
+      } catch (error) {
+        console.log('CSS selector also failed');
       }
     }
     
