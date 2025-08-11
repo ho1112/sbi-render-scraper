@@ -44,9 +44,8 @@ module.exports.scrapeDividend = async function scrapeDividend(options = {}) {
     
     // 브라우저 실행 - 로컬과 Render 환경 구분
     const isLocal = process.env.NODE_ENV !== 'production';
-    let browser;
     
-    if (isLocal) {
+    if (isLocal && puppeteerLocal) {
       // 로컬에서는 Inspector 모드로 실행
       console.log('로컬 환경에서 Inspector 모드로 실행합니다...');
       browser = await puppeteerLocal.launch({
