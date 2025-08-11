@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const puppeteer = require('puppeteer-core');
 const chromium = require('@sparticuz/chromium');
-const fs = require('fs');
+
 require('dotenv').config({ path: '.env.local' });
 
 const app = express();
@@ -38,7 +38,7 @@ async function scrapeDividend(options = {}) {
   let browser = null;
   
   try {
-    console.log('Starting dividend scraping...');
+    console.log('배당금 스크래핑을 시작합니다...');
     
     // 브라우저 실행
     browser = await puppeteer.launch({
@@ -50,19 +50,10 @@ async function scrapeDividend(options = {}) {
 
     const page = await browser.newPage();
     
-    // 저장된 쿠키가 있으면 설정
-    try {
-      if (fs.existsSync('sbi-cookies.json')) {
-        const cookies = JSON.parse(fs.readFileSync('sbi-cookies.json', 'utf8'));
-        await page.setCookie(...cookies);
-        console.log('Loaded saved cookies');
-      }
-    } catch (error) {
-      console.log('Could not load cookies:', error.message);
-    }
+
 
     // SBI 증권 로그인 페이지로 이동
-    console.log('Navigating to SBI Securities login page...');
+    console.log('SBI 증권 로그인 페이지로 이동합니다...');
     await page.goto('https://www.sbisec.co.jp/ETGate', {
       waitUntil: 'domcontentloaded',
       timeout: 60000  // 60초로 증가
@@ -78,52 +69,45 @@ async function scrapeDividend(options = {}) {
     const loginForm = await page.$('input[name="user_id"]');
     
     if (loginForm) {
-      console.log('Login form found, proceeding with login...');
+      console.log('로그인 폼을 찾았습니다. 로그인을 진행합니다...');
       
       // 사용자 ID와 비밀번호 입력 (Puppeteer API 사용)
       await page.type('input[name="user_id"]', process.env.SBI_ID);
       await page.type('input[name="user_password"]', process.env.SBI_PASSWORD);
       
       // 로그인 버튼 클릭 (실제 HTML: input[type="submit"][name="ACT_login"])
-      console.log('Clicking login button...');
+      console.log('로그인 버튼을 클릭합니다...');
       await page.click('input[name="ACT_login"]');
       await page.waitForNavigation();
       
       // 로그인 성공 여부 확인: 디바이스 인증 버튼이 나타나는지 확인
-      console.log('Checking if login was successful...');
+      console.log('로그인이 성공했는지 확인합니다...');
       let deviceAuthButton = null;
       try {
         // 디바이스 인증 버튼이 나타날 때까지 대기 (최대 10초)
         deviceAuthButton = await page.waitForSelector('button[name="ACT_deviceotpcall"]', { timeout: 10000 });
         if (deviceAuthButton) {
           const buttonText = await page.evaluate(el => el.textContent, deviceAuthButton);
-          console.log('Login successful! Found device auth button with text:', buttonText);
+          console.log('로그인 성공! 디바이스 인증 버튼을 찾았습니다. 텍스트:', buttonText);
         } else {
-          console.log('Login failed: Device auth button not found');
-          throw new Error('Device auth button not found after login');
+                  console.log('로그인 실패: 디바이스 인증 버튼을 찾을 수 없습니다');
+        throw new Error('로그인 후 디바이스 인증 버튼을 찾을 수 없습니다');
         }
       } catch (error) {
-        console.log('Login failed:', error.message);
-        throw new Error(`Login verification failed: ${error.message}`);
+        console.log('로그인 실패:', error.message);
+        throw new Error(`로그인 확인 실패: ${error.message}`);
       }
       
-      // 로그인 성공 후 쿠키 저장
-      try {
-        const cookies = await page.cookies();
-        fs.writeFileSync('sbi-cookies.json', JSON.stringify(cookies, null, 2));
-        console.log('Saved cookies for future use');
-      } catch (error) {
-        console.log('Could not save cookies:', error.message);
-      }
+
     } else {
-      console.log('No login form found, checking if already logged in...');
+      console.log('로그인 폼을 찾을 수 없습니다. 이미 로그인되어 있는지 확인합니다...');
       
       // 실제로 로그인된 상태인지 확인 (사용자 정보나 계정 메뉴가 있는지)
       const userInfo = await page.$('.user-info, .account-info, [data-user], .user-menu, .account-menu');
       if (userInfo) {
-        console.log('User info found, already logged in');
+        console.log('사용자 정보를 찾았습니다. 이미 로그인되어 있습니다');
       } else {
-        console.log('No user info found, forcing login...');
+                  console.log('사용자 정보를 찾을 수 없습니다. 강제 로그인을 진행합니다...');
         
         // 강제로 로그인 진행
         await page.type('input[name="user_id"]', process.env.SBI_ID);
@@ -138,14 +122,14 @@ async function scrapeDividend(options = {}) {
           forcedDeviceAuthButton = await page.waitForSelector('button[name="ACT_deviceotpcall"]', { timeout: 10000 });
           if (forcedDeviceAuthButton) {
             const buttonText = await page.evaluate(el => el.textContent, forcedDeviceAuthButton);
-            console.log('Forced login successful! Found device auth button with text:', buttonText);
+            console.log('강제 로그인 성공! 디바이스 인증 버튼을 찾았습니다. 텍스트:', buttonText);
           } else {
-            console.log('Forced login failed: Device auth button not found');
-            throw new Error('Device auth button not found after forced login');
+            console.log('강제 로그인 실패: 디바이스 인증 버튼을 찾을 수 없습니다');
+            throw new Error('강제 로그인 후 디바이스 인증 버튼을 찾을 수 없습니다');
           }
         } catch (error) {
-          console.log('Forced login failed:', error.message);
-          throw new Error(`Forced login verification failed: ${error.message}`);
+          console.log('강제 로그인 실패:', error.message);
+          throw new Error(`강제 로그인 확인 실패: ${error.message}`);
         }
       }
     }
@@ -153,41 +137,41 @@ async function scrapeDividend(options = {}) {
     // 현재 페이지 상태 재확인 (2FA 전)
     const currentUrlAfterLogin = await page.url();
     const currentTitleAfterLogin = await page.title();
-    console.log('Current URL after login:', currentUrlAfterLogin);
-    console.log('Current title after login:', currentTitleAfterLogin);
+    console.log('로그인 후 현재 URL:', currentUrlAfterLogin);
+    console.log('로그인 후 현재 제목:', currentTitleAfterLogin);
     
     // 페이지 내용 일부 확인
     try {
       const pageContent = await page.content();
-      console.log('Page contains 2FA elements:', pageContent.includes('code-display'));
-      console.log('Page contains device authentication:', pageContent.includes('device'));
+      console.log('페이지에 2FA 요소 포함:', pageContent.includes('code-display'));
+      console.log('페이지에 디바이스 인증 포함:', pageContent.includes('device'));
     } catch (error) {
-      console.log('Could not check page content:', error.message);
+      console.log('페이지 내용을 확인할 수 없습니다:', error.message);
     }
     
-    console.log('Login successful, proceeding to 2FA...');
+    console.log('로그인 성공, 2FA로 진행합니다...');
     
     // 4. 새로운 디바이스 인증 로직 (2025/8/9 이후 사양)
-    console.log('Starting new device authentication flow...');
+    console.log('새로운 디바이스 인증 플로우를 시작합니다...');
     
     // 페이지 안정화 대기
     await page.waitForTimeout(2000);
     
     // "Eメールを送信する" 버튼 찾기 및 클릭
-    console.log('Looking for "Send Email" button...');
+    console.log('"이메일 전송" 버튼을 찾습니다...');
     let emailButton = null;
     try {
       // 1차: name 속성 기반
       emailButton = await page.waitForSelector('button[name="ACT_deviceotpcall"]', { timeout: 10000 });
-      console.log('Found email button by name attribute');
+      console.log('이름 속성으로 이메일 버튼을 찾았습니다');
     } catch (e) {
-      console.log('Name-based button not found, trying text-based...');
+              console.log('이름 기반 버튼을 찾을 수 없습니다. 텍스트 기반으로 시도합니다...');
       try {
         // 2차: 텍스트 기반
         emailButton = await page.waitForSelector('button:has-text("Eメールを送信する")', { timeout: 10000 });
-        console.log('Found email button by text');
+        console.log('텍스트로 이메일 버튼을 찾았습니다');
       } catch (e2) {
-        console.log('Text-based button not found, trying generic selector...');
+        console.log('텍스트 기반 버튼을 찾을 수 없습니다. 일반 선택자로 시도합니다...');
         try {
           // 3차: 일반적인 버튼 선택자
           const allButtons = await page.$$('button');
@@ -195,40 +179,40 @@ async function scrapeDividend(options = {}) {
             const buttonText = await page.evaluate(el => el.textContent, allButtons[i]);
             if (buttonText && buttonText.includes('Eメールを送信する')) {
               emailButton = allButtons[i];
-              console.log('Found email button by generic selector');
+              console.log('일반 선택자로 이메일 버튼을 찾았습니다');
               break;
             }
           }
         } catch (e3) {
-          console.log('All button finding methods failed');
-          throw new Error('Could not find email button on the page');
+                  console.log('모든 버튼 찾기 방법이 실패했습니다');
+        throw new Error('페이지에서 이메일 버튼을 찾을 수 없습니다');
         }
       }
     }
     
     if (!emailButton) {
-      throw new Error('Email button not found');
+      throw new Error('이메일 버튼을 찾을 수 없습니다');
     }
     
     // 버튼 클릭
-    console.log('Clicking "Send Email" button...');
+    console.log('"이메일 전송" 버튼을 클릭합니다...');
     await emailButton.click();
-    console.log('Clicked "Send Email" button');
+    console.log('"이메일 전송" 버튼을 클릭했습니다');
     
     // 이메일에서 인증 URL을 기다림 (폴링 + 타임아웃)
-    console.log('Waiting for auth URL from Gmail...');
+    console.log('Gmail에서 인증 URL을 기다립니다...');
     const triggerMs = Date.now();
     const authUrlResult = await waitForAuthUrlFromGmail({ sinceMs: triggerMs });
     
     if (!authUrlResult || !authUrlResult.url) {
-      throw new Error('Failed to get auth URL from Gmail');
+      throw new Error('Gmail에서 인증 URL을 가져오는데 실패했습니다');
     }
     
     const authUrl = authUrlResult.url;
-    console.log('Auth URL received from Gmail');
+    console.log('Gmail에서 인증 URL을 받았습니다');
     
     // 5. 새 탭에서 인증 URL 열고 코드 입력
-    console.log(`Opening auth URL in a new tab: ${authUrl}`);
+    console.log(`새 탭에서 인증 URL을 엽니다: ${authUrl}`);
     
     // 새 페이지 생성
     let authPage = null;
@@ -238,47 +222,47 @@ async function scrapeDividend(options = {}) {
     while (authTabAttempts < maxAuthTabAttempts && !authPage) {
       try {
         authTabAttempts++;
-        console.log(`Attempt ${authTabAttempts} to create auth tab...`);
+        console.log(`인증 탭 생성 시도 ${authTabAttempts}...`);
         
         authPage = await browser.newPage();
-        console.log('Auth tab created successfully');
+        console.log('인증 탭이 성공적으로 생성되었습니다');
         
         // 인증 URL로 이동
-        console.log('Navigating to auth URL...');
+        console.log('인증 URL로 이동합니다...');
         await authPage.goto(authUrl, { 
           waitUntil: 'domcontentloaded', 
           timeout: 30000 
         });
-        console.log('Successfully navigated to auth URL');
+        console.log('인증 URL로 성공적으로 이동했습니다');
         break;
         
       } catch (e) {
-        console.log(`Attempt ${authTabAttempts} failed:`, e);
+        console.log(`시도 ${authTabAttempts} 실패:`, e);
         
         if (authPage) {
           try {
             await authPage.close();
           } catch (closeError) {
-            console.log('Could not close failed auth page:', closeError);
+            console.log('실패한 인증 페이지를 닫을 수 없습니다:', closeError);
           }
           authPage = null;
         }
         
         if (authTabAttempts >= maxAuthTabAttempts) {
-          throw new Error(`Failed to create and navigate auth tab after ${maxAuthTabAttempts} attempts`);
+          throw new Error(`인증 탭 생성 및 이동 시도 ${maxAuthTabAttempts}회 후 실패했습니다`);
         }
         
-        console.log(`Waiting ${authTabAttempts * 1000}ms before retry...`);
+        console.log(`${authTabAttempts * 1000}ms 대기 후 재시도...`);
         await new Promise(resolve => setTimeout(resolve, authTabAttempts * 1000));
       }
     }
     
     if (!authPage) {
-      throw new Error('Could not create auth tab');
+      throw new Error('인증 탭을 생성할 수 없습니다');
     }
     
     // 인증 코드 입력 필드가 활성화될 때까지 기다리기
-    console.log('Waiting for verification code input field...');
+    console.log('인증 코드 입력 필드를 기다립니다...');
     
     let inputField = null;
     let inputAttempts = 0;
@@ -287,28 +271,28 @@ async function scrapeDividend(options = {}) {
     while (inputAttempts < maxInputAttempts && !inputField) {
       try {
         inputAttempts++;
-        console.log(`Attempt ${inputAttempts} to find input field...`);
+        console.log(`입력 필드 찾기 시도 ${inputAttempts}...`);
         
         inputField = await authPage.waitForSelector('input[name="verifyCode"]', { timeout: 10000 });
-        console.log('Input field found successfully');
+        console.log('입력 필드를 성공적으로 찾았습니다');
         break;
       } catch (e) {
-        console.log(`Attempt ${inputAttempts} failed:`, e);
+        console.log(`시도 ${inputAttempts} 실패:`, e);
         if (inputAttempts >= maxInputAttempts) {
-          throw new Error(`Failed to find input field after ${maxInputAttempts} attempts`);
+          throw new Error(`입력 필드 찾기 시도 ${maxInputAttempts}회 후 실패했습니다`);
         }
         const waitTime = Math.min(inputAttempts * 1000, 3000);
-        console.log(`Waiting ${waitTime}ms before retry...`);
+        console.log(`${waitTime}ms 대기 후 재시도...`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
       }
     }
     
     if (!inputField) {
-      throw new Error('Could not find input field');
+      throw new Error('입력 필드를 찾을 수 없습니다');
     }
     
     // 메인 페이지에서 최신 인증 코드 읽기 (40초마다 변경되므로)
-    console.log('Reading latest auth code from main page...');
+    console.log('메인 페이지에서 최신 인증 코드를 읽습니다...');
     
     let codeElement = null;
     let codeAttempts = 0;
@@ -317,47 +301,47 @@ async function scrapeDividend(options = {}) {
     while (codeAttempts < maxCodeAttempts && !codeElement) {
       try {
         codeAttempts++;
-        console.log(`Attempt ${codeAttempts} to find code display element...`);
+        console.log(`코드 표시 요소 찾기 시도 ${codeAttempts}...`);
         
         codeElement = await page.waitForSelector('#code-display', { timeout: 10000 });
-        console.log('Code display element found successfully');
+        console.log('코드 표시 요소를 성공적으로 찾았습니다');
         break;
       } catch (e) {
-        console.log(`Attempt ${codeAttempts} failed:`, e);
+        console.log(`시도 ${codeAttempts} 실패:`, e);
         if (codeAttempts >= maxCodeAttempts) {
-          throw new Error(`Failed to find code display element after ${maxCodeAttempts} attempts`);
+          throw new Error(`코드 표시 요소 찾기 시도 ${maxCodeAttempts}회 후 실패했습니다`);
         }
         const waitTime = Math.min(codeAttempts * 1000, 3000);
-        console.log(`Waiting ${waitTime}ms before retry...`);
+        console.log(`${waitTime}ms 대기 후 재시도...`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
       }
     }
     
     if (!codeElement) {
-      throw new Error('Could not find code display element');
+      throw new Error('코드 표시 요소를 찾을 수 없습니다');
     }
     
     // 코드 읽기
     const latestCode = await page.evaluate(el => el.textContent, codeElement);
     if (!latestCode) {
-      throw new Error('Could not read the latest auth code from the web page');
+      throw new Error('웹 페이지에서 최신 인증 코드를 읽을 수 없습니다');
     }
-    console.log('Auth code read successfully:', latestCode);
+    console.log('인증 코드를 성공적으로 읽었습니다:', latestCode);
     
     // 인증 코드 입력
-    console.log('Entering auth code...');
+    console.log('인증 코드를 입력합니다...');
     await authPage.type('input[name="verifyCode"]', latestCode);
     
     // 제출 버튼 클릭
-    console.log('Clicking submit button...');
+    console.log('제출 버튼을 클릭합니다...');
     await authPage.click('button[type="submit"]');
     
     // 인증 완료 후 탭 닫기
-    console.log('Closing auth tab...');
+    console.log('인증 탭을 닫습니다...');
     await authPage.close();
     
     // 6. 원래 페이지로 돌아가서 최종 확인
-    console.log('Returning to main page for final confirmation...');
+    console.log('메인 페이지로 돌아가서 최종 확인합니다...');
     
     // 체크박스 확인 및 등록 버튼 클릭
     let checkbox = null;
@@ -367,53 +351,53 @@ async function scrapeDividend(options = {}) {
     while (checkboxAttempts < maxCheckboxAttempts && !checkbox) {
       try {
         checkboxAttempts++;
-        console.log(`Attempt ${checkboxAttempts} to find checkbox...`);
+        console.log(`체크박스 찾기 시도 ${checkboxAttempts}...`);
         
         checkbox = await page.waitForSelector('#device-checkbox', { timeout: 10000 });
-        console.log('Checkbox found successfully');
+        console.log('체크박스를 성공적으로 찾았습니다');
         break;
       } catch (e) {
-        console.log(`Attempt ${checkboxAttempts} failed:`, e);
+        console.log(`시도 ${checkboxAttempts} 실패:`, e);
         if (checkboxAttempts >= maxCheckboxAttempts) {
-          throw new Error(`Failed to find checkbox after ${maxCheckboxAttempts} attempts`);
+          throw new Error(`체크박스 찾기 시도 ${maxCheckboxAttempts}회 후 실패했습니다`);
         }
         const waitTime = Math.min(checkboxAttempts * 1000, 3000);
-        console.log(`Waiting ${waitTime}ms before retry...`);
+        console.log(`${waitTime}ms 대기 후 재시도...`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
       }
     }
     
     if (!checkbox) {
-      throw new Error('Could not find checkbox');
+      throw new Error('체크박스를 찾을 수 없습니다');
     }
     
     // 체크박스 클릭
-    console.log('Clicking checkbox...');
+    console.log('체크박스를 클릭합니다...');
     await page.click('#device-checkbox');
     
     // 등록 버튼 클릭
-    console.log('Clicking registration button...');
+    console.log('등록 버튼을 클릭합니다...');
     await page.click('#device-auth-otp');
     
-    console.log('Device authentication completed successfully!');
+    console.log('디바이스 인증이 성공적으로 완료되었습니다!');
     
     // 7. 로그인 완료 확인 - 실제로 로그인된 상태인지 확인
-    console.log('Verifying login completion...');
+    console.log('로그인 완료를 확인합니다...');
     await page.waitForTimeout(3000); // 페이지 안정화 대기
     
     // 로그인 완료 후 상태 확인
     const finalUrl = await page.url();
     const finalTitle = await page.title();
-    console.log('Final URL after authentication:', finalUrl);
-    console.log('Final title after authentication:', finalTitle);
+    console.log('인증 후 최종 URL:', finalUrl);
+    console.log('인증 후 최종 제목:', finalTitle);
     
     // 로그인 완료 여부 확인 (사용자 정보나 계정 메뉴가 있는지)
     const userInfo = await page.$('.user-info, .account-info, [data-user], .user-menu, .account-menu');
     if (!userInfo) {
-      throw new Error('Login verification failed: User info not found after authentication');
+      throw new Error('로그인 확인 실패: 인증 후 사용자 정보를 찾을 수 없습니다');
     }
     
-    console.log('Login verification successful! Proceeding to dividend page...');
+    console.log('로그인 확인 성공! 배당금 페이지로 진행합니다...');
     
     // 배당금 내역 페이지로 이동
     // scraper.ts와 동일한 날짜 처리 로직
@@ -429,11 +413,11 @@ async function scrapeDividend(options = {}) {
     if (bodyFrom && bodyTo) {
       dispositionDateFrom = bodyFrom;
       dispositionDateTo = bodyTo;
-      console.log(`Using request body dates: ${bodyFrom} to ${bodyTo}`);
+      console.log(`요청 바디 날짜를 사용합니다: ${bodyFrom} ~ ${bodyTo}`);
     } else if (envFrom && envTo) {
       dispositionDateFrom = envFrom;
       dispositionDateTo = envTo;
-      console.log(`Using environment variables for dates: ${envFrom} to ${envTo}`);
+      console.log(`환경변수 날짜를 사용합니다: ${envFrom} ~ ${envTo}`);
     } else {
       // 오늘 날짜 사용 (JST)
       const today = new Date();
@@ -441,7 +425,7 @@ async function scrapeDividend(options = {}) {
       const dateStr = jstDate.toISOString().split('T')[0].replace(/-/g, '/');
       dispositionDateFrom = dateStr;
       dispositionDateTo = dateStr;
-      console.log(`Using today's date (JST): ${dateStr}`);
+      console.log(`오늘 날짜를 사용합니다 (JST): ${dateStr}`);
     }
     
     // scraper.ts와 동일한 URL 사용
@@ -449,31 +433,31 @@ async function scrapeDividend(options = {}) {
     const dividendUrl = `${baseUrl}?dispositionDateFrom=${dispositionDateFrom}&dispositionDateTo=${dispositionDateTo}`;
     
     // 로그인 후 페이지가 완전히 로드될 때까지 대기
-    console.log('Waiting for login to complete...');
+    console.log('로그인이 완료될 때까지 대기합니다...');
     await page.waitForTimeout(3000); // 3초 대기
     
     // 현재 페이지 상태 확인
     const currentUrlBeforeDividend = await page.url();
     const currentTitleBeforeDividend = await page.title();
-    console.log('Current URL before dividend navigation:', currentUrlBeforeDividend);
-    console.log('Current title before dividend navigation:', currentTitleBeforeDividend);
+    console.log('배당금 페이지 이동 전 현재 URL:', currentUrlBeforeDividend);
+    console.log('배당금 페이지 이동 전 현재 제목:', currentTitleBeforeDividend);
     
-    console.log(`Navigating to dividend page: ${dividendUrl}`);
+    console.log(`배당금 페이지로 이동합니다: ${dividendUrl}`);
     await page.goto(dividendUrl, { waitUntil: 'networkidle2', timeout: 60000 });
     
     // 배당금 페이지 이동 후 상태 확인
     const dividendPageUrl = await page.url();
     const dividendPageTitle = await page.title();
-    console.log('Dividend page URL after navigation:', dividendPageUrl);
-    console.log('Dividend page title after navigation:', dividendPageTitle);
+    console.log('배당금 페이지 이동 후 URL:', dividendPageUrl);
+    console.log('배당금 페이지 이동 후 제목:', dividendPageTitle);
     
     // 실제로 배당금 페이지에 도달했는지 확인
     if (!dividendPageUrl.includes('dividends')) {
-      console.log('WARNING: Did not reach dividend page, current URL:', dividendPageUrl);
+      console.log('경고: 배당금 페이지에 도달하지 못했습니다. 현재 URL:', dividendPageUrl);
     }
     
     // CSV 다운로드 버튼 찾기 (실제 HTML 구조에 맞춤)
-    console.log('Looking for CSV download button...');
+    console.log('CSV 다운로드 버튼을 찾습니다...');
     let downloadButton = null;
     
     try {
@@ -481,40 +465,40 @@ async function scrapeDividend(options = {}) {
       downloadButton = await page.$('button.text-xs.link-light');
       if (downloadButton) {
         const buttonText = await page.evaluate(el => el.textContent, downloadButton);
-        console.log('Found button with text:', buttonText);
+        console.log('텍스트가 있는 버튼을 찾았습니다:', buttonText);
         if (buttonText && buttonText.includes('CSVダウンロード')) {
-          console.log('CSV download button found by CSS class and text');
+          console.log('CSS 클래스와 텍스트로 CSV 다운로드 버튼을 찾았습니다');
         } else {
           downloadButton = null;
         }
       } else {
-        console.log('No button found with CSS class text-xs link-light');
+        console.log('CSS 클래스 text-xs link-light로 버튼을 찾을 수 없습니다');
       }
     } catch (error) {
-      console.log('CSS selector failed:', error.message);
+      console.log('CSS 선택자가 실패했습니다:', error.message);
     }
     
     // 디버깅: 페이지에 어떤 버튼들이 있는지 확인
     if (!downloadButton) {
       try {
         const allButtons = await page.$$('button');
-        console.log(`Found ${allButtons.length} buttons on page`);
+        console.log(`페이지에서 ${allButtons.length}개의 버튼을 찾았습니다`);
         for (let i = 0; i < Math.min(allButtons.length, 5); i++) {
           const buttonText = await page.evaluate(el => el.textContent, allButtons[i]);
           const buttonClass = await page.evaluate(el => el.className, allButtons[i]);
-          console.log(`Button ${i}: text="${buttonText}", class="${buttonClass}"`);
+          console.log(`버튼 ${i}: 텍스트="${buttonText}", 클래스="${buttonClass}"`);
         }
       } catch (error) {
-        console.log('Could not inspect buttons:', error.message);
+        console.log('버튼을 검사할 수 없습니다:', error.message);
       }
     }
     
     if (downloadButton) {
       // CSV 다운로드 버튼 클릭
       await downloadButton.click();
-      console.log('CSV download initiated');
+      console.log('CSV 다운로드가 시작되었습니다');
     } else {
-      console.log('CSV download button not found');
+      console.log('CSV 다운로드 버튼을 찾을 수 없습니다');
     }
     
     // 브라우저 종료
@@ -530,7 +514,7 @@ async function scrapeDividend(options = {}) {
     };
     
   } catch (error) {
-    console.error('Scraping failed:', error);
+    console.error('스크래핑이 실패했습니다:', error);
     
     if (browser) {
       await browser.close();
@@ -551,28 +535,28 @@ async function waitForAuthUrlFromGmail(options = {}) {
   let lastSeen = null;
   let attemptCount = 0;
   
-  console.log(`Waiting for auth URL from Gmail (timeout: ${timeoutMs}ms, poll: ${pollMs}ms)`);
+  console.log(`Gmail에서 인증 URL을 기다립니다 (타임아웃: ${timeoutMs}ms, 폴링: ${pollMs}ms)`);
   
   while (Date.now() - start < timeoutMs) {
     attemptCount++;
-    console.log(`Gmail search attempt ${attemptCount}...`);
+    console.log(`Gmail 검색 시도 ${attemptCount}...`);
     
     const found = await getAuthUrlFromGmail({ sinceMs, lastSeenMessageId: lastSeen }).catch(() => null);
     if (found) return found;
     
     const elapsed = Date.now() - start;
-    console.log(`No auth URL found yet (elapsed: ${elapsed}ms, remaining: ${timeoutMs - elapsed}ms)`);
+    console.log(`아직 인증 URL을 찾지 못했습니다 (경과: ${elapsed}ms, 남은 시간: ${timeoutMs - elapsed}ms)`);
     
     await new Promise(res => setTimeout(res, 2000)); // 2초 대기 (테스트용)
   }
-  throw new Error(`Timed out waiting for auth URL from Gmail (>${timeoutMs}ms)`);
+  throw new Error(`Gmail에서 인증 URL을 기다리는 시간이 초과되었습니다 (>${timeoutMs}ms)`);
 }
 
 // Gmail에서 인증 URL 가져오기 (간단한 구현)
 async function getAuthUrlFromGmail(options = {}) {
   // 실제로는 Gmail API를 사용해야 함
   // 여기서는 테스트용 더미 URL 반환
-  console.log('Getting auth URL from Gmail (dummy implementation)');
+  console.log('Gmail에서 인증 URL을 가져옵니다 (더미 구현)');
   await new Promise(resolve => setTimeout(resolve, 2000)); // 2초 대기 (테스트용)
   return 'https://example.com/auth';
 }
@@ -592,10 +576,10 @@ app.post('/scrape', async (req, res) => {
     const { action, from, to } = req.body;
     
     if (action === 'scrape_dividend') {
-      console.log('Received scrape request');
+      console.log('스크래핑 요청을 받았습니다');
       
       // Puppeteer 실행 전 테스트 응답
-      console.log('About to launch Puppeteer...');
+      console.log('Puppeteer를 시작합니다...');
       
       const result = await scrapeDividend({ from, to });
       res.json(result);
