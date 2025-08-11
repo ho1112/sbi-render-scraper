@@ -225,8 +225,13 @@ module.exports.scrapeDividend = async function scrapeDividend(options = {}) {
       // scraper.ts와 동일한 방식으로 버튼 찾기
       emailButton = await page.waitForSelector('button[name="ACT_deviceotpcall"]', { timeout: 10000 });
       if (emailButton) {
-        const buttonText = await page.evaluate(el => el.textContent, emailButton);
-        console.log(`이메일 전송 버튼을 찾았습니다: "${buttonText}"`);
+        try {
+          const buttonText = await page.evaluate(el => el.textContent, emailButton);
+          console.log(`이메일 전송 버튼을 찾았습니다: "${buttonText}"`);
+        } catch (error) {
+          console.log('버튼 텍스트를 가져올 수 없습니다 (페이지 컨텍스트 파괴):', error.message);
+          console.log('이메일 전송 버튼을 찾았습니다 (텍스트 확인 불가)');
+        }
       } else {
         throw new Error('이메일 전송 버튼을 찾을 수 없습니다');
       }
