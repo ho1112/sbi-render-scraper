@@ -1,9 +1,16 @@
 const express = require('express');
 const cors = require('cors');
 const puppeteer = require('puppeteer-core');
-const puppeteerLocal = require('puppeteer');
 const chromium = require('@sparticuz/chromium');
 const { google } = require('googleapis');
+
+// 로컬 환경에서만 puppeteer 사용 (Inspector 모드용)
+let puppeteerLocal = null;
+try {
+  puppeteerLocal = require('puppeteer');
+} catch (error) {
+  console.log('로컬 puppeteer를 찾을 수 없습니다. Inspector 모드가 비활성화됩니다.');
+}
 
 require('dotenv').config({ path: '.env.local' });
 
