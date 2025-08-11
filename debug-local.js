@@ -14,11 +14,12 @@ async function debugLocal() {
     console.log('server.js의 scrapeDividend 함수를 실행합니다...');
     
     const result = await scrapeDividend({
-      debugAuthOnly: true, // 인증만 테스트
+      debugAuthOnly: false, // 전체 스크래핑 테스트
       overrideDates: {
         from: '2025/08/01',
         to: '2025/08/06'
-      }
+      },
+      forceHeadless: true // 로컬에서도 headless 모드로 테스트 (puppeteer-extra 사용)
     });
     
     console.log('디버깅 결과:', result);

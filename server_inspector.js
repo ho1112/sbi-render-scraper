@@ -4,32 +4,12 @@ const puppeteer = require('puppeteer-core');
 const chromium = require('@sparticuz/chromium');
 const { google } = require('googleapis');
 
-// puppeteer-extra와 stealth 플러그인 (SBI 증권 사이트와 호환성 문제로 일시적으로 비활성화)
 // puppeteer-extra와 stealth 플러그인
 const puppeteerExtra = require('puppeteer-extra');
 const stealth = require('puppeteer-extra-plugin-stealth');
 
-// stealth 플러그인 적용
+// stealth 플러그인 적용 (sourceurl evasion 문제는 다른 방법으로 해결)
 puppeteerExtra.use(stealth());
-
-// sourceurl evasion을 완전히 제거 (SBI 증권 사이트와 호환성 문제)
-try {
-  // stealth 플러그인에서 sourceurl evasion 제거
-  if (stealth.enabledEvasions && stealth.enabledEvasions.delete) {
-    stealth.enabledEvasions.delete('sourceurl');
-    console.log('sourceurl evasion을 비활성화했습니다');
-  }
-  
-  // 또는 stealth 플러그인을 다시 설정하여 sourceurl evasion 제외
-  if (!stealth.enabledEvasions || !stealth.enabledEvasions.delete) {
-    console.log('stealth 플러그인을 sourceurl evasion 없이 다시 설정합니다');
-    const stealthWithoutSourceurl = require('puppeteer-extra-plugin-stealth');
-    stealthWithoutSourceurl.enabledEvasions.delete('sourceurl');
-    puppeteerExtra.use(stealthWithoutSourceurl());
-  }
-} catch (error) {
-  console.log('sourceurl evasion 비활성화 실패, 다른 방법으로 해결합니다:', error.message);
-}
 
 // 로컬 환경에서만 puppeteer 사용 (Inspector 모드용)
 let puppeteerLocal = null;
