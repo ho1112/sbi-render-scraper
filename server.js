@@ -167,36 +167,253 @@ async function scrapeDividend(options = {}) {
     
     console.log('Login successful, proceeding to 2FA...');
     
-    // 2FA가 필요하지 않은 경우 건너뛰기
-    if (!(await page.$('#code-display'))) {
-      console.log('2FA not required, proceeding directly to dividend page...');
-    } else {
-      // 2단계 인증 처리 (기존 코드)
-      // 디바이스 인증 팝업에서 코드 추출
-      const deviceCode = await page.$eval('#code-display', el => el.textContent);
-      console.log('Device code extracted:', deviceCode);
-      
-      // Gmail에서 인증 URL 가져오기 (간단한 구현)
-      // 실제로는 Gmail API를 사용해야 함
-      const authUrl = await getAuthUrlFromGmail();
-      
-      // 새 탭에서 인증 URL 열기
-      const authPage = await browser.newPage();
-      await authPage.goto(authUrl);
-      
-      // 인증 코드 입력
-      await authPage.type('input[name="verifyCode"]', deviceCode);
-      await authPage.click('button[type="submit"]');
-      
-      // 인증 완료 후 탭 닫기
-      await authPage.close();
-      
-      // 원래 페이지로 돌아가서 최종 확인
-      await page.check('#device-checkbox');
-      await page.click('#device-auth-otp');
-      
-      console.log('2FA completed, navigating to dividend page...');
+    // 4. 새로운 디바이스 인증 로직 (2025/8/9 이후 사양)
+    console.log('Starting new device authentication flow...');
+    
+    // 페이지 안정화 대기
+    await page.waitForTimeout(2000);
+    
+    // "Eメールを送信する" 버튼 찾기 및 클릭
+    console.log('Looking for "Send Email" button...');
+    let emailButton = null;
+    try {
+      // 1차: name 속성 기반
+      emailButton = await page.waitForSelector('button[name="ACT_deviceotpcall"]', { timeout: 10000 });
+      console.log('Found email button by name attribute');
+    } catch (e) {
+      console.log('Name-based button not found, trying text-based...');
+      try {
+        // 2차: 텍스트 기반
+        emailButton = await page.waitForSelector('button:has-text("Eメールを送信する")', { timeout: 10000 });
+        console.log('Found email button by text');
+      } catch (e2) {
+        console.log('Text-based button not found, trying generic selector...');
+        try {
+          // 3차: 일반적인 버튼 선택자
+          const allButtons = await page.$$('button');
+          for (let i = 0; i < allButtons.length; i++) {
+            const buttonText = await page.evaluate(el => el.textContent, allButtons[i]);
+            if (buttonText && buttonText.includes('Eメールを送信する')) {
+              emailButton = allButtons[i];
+              console.log('Found email button by generic selector');
+              break;
+            }
+          }
+        } catch (e3) {
+          console.log('All button finding methods failed');
+          throw new Error('Could not find email button on the page');
+        }
+      }
     }
+    
+    if (!emailButton) {
+      throw new Error('Email button not found');
+    }
+    
+    // 버튼 클릭
+    console.log('Clicking "Send Email" button...');
+    await emailButton.click();
+    console.log('Clicked "Send Email" button');
+    
+    // 이메일에서 인증 URL을 기다림 (폴링 + 타임아웃)
+    console.log('Waiting for auth URL from Gmail...');
+    const triggerMs = Date.now();
+    const authUrlResult = await waitForAuthUrlFromGmail({ sinceMs: triggerMs });
+    
+    if (!authUrlResult || !authUrlResult.url) {
+      throw new Error('Failed to get auth URL from Gmail');
+    }
+    
+    const authUrl = authUrlResult.url;
+    console.log('Auth URL received from Gmail');
+    
+    // 5. 새 탭에서 인증 URL 열고 코드 입력
+    console.log(`Opening auth URL in a new tab: ${authUrl}`);
+    
+    // 새 페이지 생성
+    let authPage = null;
+    let authTabAttempts = 0;
+    const maxAuthTabAttempts = 5;
+    
+    while (authTabAttempts < maxAuthTabAttempts && !authPage) {
+      try {
+        authTabAttempts++;
+        console.log(`Attempt ${authTabAttempts} to create auth tab...`);
+        
+        authPage = await browser.newPage();
+        console.log('Auth tab created successfully');
+        
+        // 인증 URL로 이동
+        console.log('Navigating to auth URL...');
+        await authPage.goto(authUrl, { 
+          waitUntil: 'domcontentloaded', 
+          timeout: 30000 
+        });
+        console.log('Successfully navigated to auth URL');
+        break;
+        
+      } catch (e) {
+        console.log(`Attempt ${authTabAttempts} failed:`, e);
+        
+        if (authPage) {
+          try {
+            await authPage.close();
+          } catch (closeError) {
+            console.log('Could not close failed auth page:', closeError);
+          }
+          authPage = null;
+        }
+        
+        if (authTabAttempts >= maxAuthTabAttempts) {
+          throw new Error(`Failed to create and navigate auth tab after ${maxAuthTabAttempts} attempts`);
+        }
+        
+        console.log(`Waiting ${authTabAttempts * 1000}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, authTabAttempts * 1000));
+      }
+    }
+    
+    if (!authPage) {
+      throw new Error('Could not create auth tab');
+    }
+    
+    // 인증 코드 입력 필드가 활성화될 때까지 기다리기
+    console.log('Waiting for verification code input field...');
+    
+    let inputField = null;
+    let inputAttempts = 0;
+    const maxInputAttempts = 10;
+    
+    while (inputAttempts < maxInputAttempts && !inputField) {
+      try {
+        inputAttempts++;
+        console.log(`Attempt ${inputAttempts} to find input field...`);
+        
+        inputField = await authPage.waitForSelector('input[name="verifyCode"]', { timeout: 10000 });
+        console.log('Input field found successfully');
+        break;
+      } catch (e) {
+        console.log(`Attempt ${inputAttempts} failed:`, e);
+        if (inputAttempts >= maxInputAttempts) {
+          throw new Error(`Failed to find input field after ${maxInputAttempts} attempts`);
+        }
+        const waitTime = Math.min(inputAttempts * 1000, 3000);
+        console.log(`Waiting ${waitTime}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+    }
+    
+    if (!inputField) {
+      throw new Error('Could not find input field');
+    }
+    
+    // 메인 페이지에서 최신 인증 코드 읽기 (40초마다 변경되므로)
+    console.log('Reading latest auth code from main page...');
+    
+    let codeElement = null;
+    let codeAttempts = 0;
+    const maxCodeAttempts = 10;
+    
+    while (codeAttempts < maxCodeAttempts && !codeElement) {
+      try {
+        codeAttempts++;
+        console.log(`Attempt ${codeAttempts} to find code display element...`);
+        
+        codeElement = await page.waitForSelector('#code-display', { timeout: 10000 });
+        console.log('Code display element found successfully');
+        break;
+      } catch (e) {
+        console.log(`Attempt ${codeAttempts} failed:`, e);
+        if (codeAttempts >= maxCodeAttempts) {
+          throw new Error(`Failed to find code display element after ${maxCodeAttempts} attempts`);
+        }
+        const waitTime = Math.min(codeAttempts * 1000, 3000);
+        console.log(`Waiting ${waitTime}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+    }
+    
+    if (!codeElement) {
+      throw new Error('Could not find code display element');
+    }
+    
+    // 코드 읽기
+    const latestCode = await page.evaluate(el => el.textContent, codeElement);
+    if (!latestCode) {
+      throw new Error('Could not read the latest auth code from the web page');
+    }
+    console.log('Auth code read successfully:', latestCode);
+    
+    // 인증 코드 입력
+    console.log('Entering auth code...');
+    await authPage.type('input[name="verifyCode"]', latestCode);
+    
+    // 제출 버튼 클릭
+    console.log('Clicking submit button...');
+    await authPage.click('button[type="submit"]');
+    
+    // 인증 완료 후 탭 닫기
+    console.log('Closing auth tab...');
+    await authPage.close();
+    
+    // 6. 원래 페이지로 돌아가서 최종 확인
+    console.log('Returning to main page for final confirmation...');
+    
+    // 체크박스 확인 및 등록 버튼 클릭
+    let checkbox = null;
+    let checkboxAttempts = 0;
+    const maxCheckboxAttempts = 10;
+    
+    while (checkboxAttempts < maxCheckboxAttempts && !checkbox) {
+      try {
+        checkboxAttempts++;
+        console.log(`Attempt ${checkboxAttempts} to find checkbox...`);
+        
+        checkbox = await page.waitForSelector('#device-checkbox', { timeout: 10000 });
+        console.log('Checkbox found successfully');
+        break;
+      } catch (e) {
+        console.log(`Attempt ${checkboxAttempts} failed:`, e);
+        if (checkboxAttempts >= maxCheckboxAttempts) {
+          throw new Error(`Failed to find checkbox after ${maxCheckboxAttempts} attempts`);
+        }
+        const waitTime = Math.min(checkboxAttempts * 1000, 3000);
+        console.log(`Waiting ${waitTime}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+    }
+    
+    if (!checkbox) {
+      throw new Error('Could not find checkbox');
+    }
+    
+    // 체크박스 클릭
+    console.log('Clicking checkbox...');
+    await page.click('#device-checkbox');
+    
+    // 등록 버튼 클릭
+    console.log('Clicking registration button...');
+    await page.click('#device-auth-otp');
+    
+    console.log('Device authentication completed successfully!');
+    
+    // 7. 로그인 완료 확인 - 실제로 로그인된 상태인지 확인
+    console.log('Verifying login completion...');
+    await page.waitForTimeout(3000); // 페이지 안정화 대기
+    
+    // 로그인 완료 후 상태 확인
+    const finalUrl = await page.url();
+    const finalTitle = await page.title();
+    console.log('Final URL after authentication:', finalUrl);
+    console.log('Final title after authentication:', finalTitle);
+    
+    // 로그인 완료 여부 확인 (사용자 정보나 계정 메뉴가 있는지)
+    const userInfo = await page.$('.user-info, .account-info, [data-user], .user-menu, .account-menu');
+    if (!userInfo) {
+      throw new Error('Login verification failed: User info not found after authentication');
+    }
+    
+    console.log('Login verification successful! Proceeding to dividend page...');
     
     // 배당금 내역 페이지로 이동
     // scraper.ts와 동일한 날짜 처리 로직
@@ -326,10 +543,37 @@ async function scrapeDividend(options = {}) {
   }
 }
 
+async function waitForAuthUrlFromGmail(options = {}) {
+  const timeoutMs = options?.timeoutMs ?? 60000; // 코드는 40초 주기 → 여유를 두고 60초 타임아웃
+  const pollMs = options?.pollIntervalMs ?? 1000; // 폴링 간격 단축
+  const sinceMs = options?.sinceMs ?? 0;
+  const start = Date.now();
+  let lastSeen = null;
+  let attemptCount = 0;
+  
+  console.log(`Waiting for auth URL from Gmail (timeout: ${timeoutMs}ms, poll: ${pollMs}ms)`);
+  
+  while (Date.now() - start < timeoutMs) {
+    attemptCount++;
+    console.log(`Gmail search attempt ${attemptCount}...`);
+    
+    const found = await getAuthUrlFromGmail({ sinceMs, lastSeenMessageId: lastSeen }).catch(() => null);
+    if (found) return found;
+    
+    const elapsed = Date.now() - start;
+    console.log(`No auth URL found yet (elapsed: ${elapsed}ms, remaining: ${timeoutMs - elapsed}ms)`);
+    
+    await new Promise(res => setTimeout(res, 2000)); // 2초 대기 (테스트용)
+  }
+  throw new Error(`Timed out waiting for auth URL from Gmail (>${timeoutMs}ms)`);
+}
+
 // Gmail에서 인증 URL 가져오기 (간단한 구현)
-async function getAuthUrlFromGmail() {
+async function getAuthUrlFromGmail(options = {}) {
   // 실제로는 Gmail API를 사용해야 함
-  // 여기서는 간단한 예시
+  // 여기서는 테스트용 더미 URL 반환
+  console.log('Getting auth URL from Gmail (dummy implementation)');
+  await new Promise(resolve => setTimeout(resolve, 2000)); // 2초 대기 (테스트용)
   return 'https://example.com/auth';
 }
 
