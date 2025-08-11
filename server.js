@@ -89,7 +89,23 @@ async function scrapeDividend(options = {}) {
       await page.click('input[name="ACT_login"]');
       await page.waitForNavigation();
       
-      console.log('Login successful!');
+      // 로그인 성공 여부 확인: 디바이스 인증 버튼이 나타나는지 확인
+      console.log('Checking if login was successful...');
+      let deviceAuthButton = null;
+      try {
+        // 디바이스 인증 버튼이 나타날 때까지 대기 (최대 10초)
+        deviceAuthButton = await page.waitForSelector('button[name="ACT_deviceotpcall"]', { timeout: 10000 });
+        if (deviceAuthButton) {
+          const buttonText = await page.evaluate(el => el.textContent, deviceAuthButton);
+          console.log('Login successful! Found device auth button with text:', buttonText);
+        } else {
+          console.log('Login failed: Device auth button not found');
+          throw new Error('Device auth button not found after login');
+        }
+      } catch (error) {
+        console.log('Login failed:', error.message);
+        throw new Error(`Login verification failed: ${error.message}`);
+      }
       
       // 로그인 성공 후 쿠키 저장
       try {
@@ -114,7 +130,23 @@ async function scrapeDividend(options = {}) {
         await page.type('input[name="user_password"]', process.env.SBI_PASSWORD);
         await page.click('input[name="ACT_login"]');
         await page.waitForNavigation();
-        console.log('Forced login completed');
+        
+        // 강제 로그인 성공 여부 확인
+        console.log('Checking if forced login was successful...');
+        let forcedDeviceAuthButton = null;
+        try {
+          forcedDeviceAuthButton = await page.waitForSelector('button[name="ACT_deviceotpcall"]', { timeout: 10000 });
+          if (forcedDeviceAuthButton) {
+            const buttonText = await page.evaluate(el => el.textContent, forcedDeviceAuthButton);
+            console.log('Forced login successful! Found device auth button with text:', buttonText);
+          } else {
+            console.log('Forced login failed: Device auth button not found');
+            throw new Error('Device auth button not found after forced login');
+          }
+        } catch (error) {
+          console.log('Forced login failed:', error.message);
+          throw new Error(`Forced login verification failed: ${error.message}`);
+        }
       }
     }
     
