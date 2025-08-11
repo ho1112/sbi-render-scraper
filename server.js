@@ -857,7 +857,7 @@ app.post('/scrape', async (req, res) => {
       // Puppeteer 실행 전 테스트 응답
       console.log('Puppeteer를 시작합니다...');
       
-      const result = await scrapeDividend({ from, to });
+      const result = await module.exports.scrapeDividend({ from, to });
       res.json(result);
     } else {
       res.status(400).json({ error: 'Invalid action' });
